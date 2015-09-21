@@ -49,6 +49,7 @@ import (
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 	"github.com/pjebs/restgate"
+    "gopkg.in/mgo.v2" // mongo driver
 	"net/http"
 )
 
@@ -74,20 +75,32 @@ func NewRoute() *mux.Router {
 	rest2Router := mux.NewRouter()
 	rest2Router.HandleFunc("/api2", Handler2()) //A second Rest API Endpoint handler -> Use your own
 
+	rest3Router := mux.NewRouter()
+	rest3Router.HandleFunc("/api3", Handler3()) //A third Rest API Endpoint handler -> Use your own
+
 	//Create negroni instance to handle different middlewares for different api routes
 	negRest := negroni.New()
-	negRest.Use(restgate.New("X-Auth-Key", "X-Auth-Secret", restgate.Static, restgate.Config{Context: C, Key: []string{"12345"}, Secret: []string{"secret"}}))
+	negRest.Use(restgate.New("X-Auth-Key", "X-Auth-Secret", restgate.NewStaticKeyStoreFromKeys({"12345":"secret"}), restgate.Config{Context: C}))
 	negRest.UseHandler(restRouter)
 
 	negRest2 := negroni.New()
-	negRest2.Use(restgate.New("X-Auth-Key", "X-Auth-Secret", restgate.Database, restgate.Config{DB: SqlDB(), TableName: "users", Key: []string{"keys"}, Secret: []string{"secrets"}}))
+	negRest2.Use(restgate.New("X-Auth-Key", "X-Auth-Secret", restgate.NewSQLKeyStore(SqlDB(), "users", "keys", "secrets"), restgate.Config{}))
 	negRest2.UseHandler(rest2Router)
+
+    keyStore, err = restgate.NewMongoKeystore(GetMongoSession(), "mydatabase", "keys", "key", "secret")  
+    if err != nil {
+        panic(err)
+    }
+	negRest3 := negroni.New()
+	negRest3.Use(restgate.New("X-Auth-Key", "X-Auth-Secret", keyStore, restgate.Config{}))
+	negRest3.UseHandler(rest2Router)
 
 	//Create main router
 	mainRouter := mux.NewRouter().StrictSlash(true)
 	mainRouter.HandleFunc("/", MainHandler()) //Main Handler -> Use your own
 	mainRouter.Handle("/api", negRest) //This endpoint is protected by RestGate via hardcoded KEYs
-	mainRouter.Handle("/api2", negRest2) //This endpoint is protected by RestGate via KEYs stored in a database
+	mainRouter.Handle("/api2", negRest2) //This endpoint is protected by RestGate via KEYs stored in a sql database
+	mainRouter.Handle("/api3", negRest3) //This endpoint is protected by RestGate via KEYs stored in a mongo database
 
 	return mainRouter
 
@@ -121,6 +134,16 @@ func SqlDB() *sql.DB {
 
 }
 
+func GetMongoSession() *mgo.session{
+    URI := "localhost:27017"
+    session, err := mgo.Dial(uri)
+	if err != nil {
+		panic(err)
+	}
+    session.SetMode(mgo.Monotonic, true)
+    return session
+}
+
 //Endpoint Handlers
 func Handler1() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -131,6 +154,12 @@ func Handler1() func(http.ResponseWriter, *http.Request) {
 func Handler2() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "/api2 -> Handler2 - protected by RestGate (database mode)\n")
+	}
+}
+
+func Handler3() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "/api3 -> Handler3 - protected by RestGate (nosql mode)\n")
 	}
 }
 
