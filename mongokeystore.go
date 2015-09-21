@@ -14,7 +14,7 @@ type MongoKeyStore struct {
 	secretField string
 }
 
-func NewMongoKeystore(session *mgo.Session, database string, collection string, keyField string, secretField string) (*MongoKeyStore, error) {
+func NewMongoKeyStore(session *mgo.Session, database string, collection string, keyField string, secretField string) (*MongoKeyStore, error) {
 	if database == "" {
 		return nil, errors.New("Database name cannot be empty")
 	}

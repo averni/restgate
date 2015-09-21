@@ -15,7 +15,7 @@ type SQLKeyStore struct {
 	postgres     bool
 }
 
-func NewSQLKeystore(db *sql.DB, database string, tableName string, keyColumn string, secretColumn string, postgres bool) (*SQLKeyStore, error) {
+func NewSQLKeyStore(db *sql.DB, database string, tableName string, keyColumn string, secretColumn string, postgres bool) (*SQLKeyStore, error) {
 	if database == "" {
 		return nil, errors.New("Database name cannot be empty")
 	}
